@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { PlusCircle, Image as ImageIcon, Film } from 'lucide-react'
-import Image from 'next/image'
+import { Image as ImageIcon, Film } from 'lucide-react'
+import UploadAdDialog from '@/components/ads/UploadAdDialog'
 
 export default async function AdManagementPage() {
   const ads = await prisma.ad.findMany({
@@ -17,10 +17,7 @@ export default async function AdManagementPage() {
           <h2 className="text-2xl font-bold tracking-tight">Ad Library</h2>
           <p className="text-muted-foreground">Manage and upload creative assets for the fleet.</p>
         </div>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Upload Ad
-        </Button>
+        <UploadAdDialog />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

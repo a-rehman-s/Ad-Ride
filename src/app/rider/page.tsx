@@ -5,11 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { ThermometerSun, Activity, MapPin } from 'lucide-react'
 import TelemetryChart from '@/components/charts/TelemetryChart'
-
-const FleetMap = dynamic(() => import('@/components/map/FleetMap'), { 
-  ssr: false,
-  loading: () => <div className="w-full h-full bg-slate-100 flex items-center justify-center animate-pulse">Loading map...</div> 
-})
+import MapWrapper from '@/components/map/MapWrapper'
 
 export default async function RiderDashboard() {
   const supabase = await createClient()
@@ -116,7 +112,7 @@ export default async function RiderDashboard() {
             <CardDescription>Live map tracking</CardDescription>
           </CardHeader>
           <CardContent className="h-[400px] p-0 overflow-hidden rounded-b-xl border-t">
-            <FleetMap initialData={mapData} />
+            <MapWrapper initialData={mapData} />
           </CardContent>
         </Card>
 

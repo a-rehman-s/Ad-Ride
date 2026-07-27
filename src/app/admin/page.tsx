@@ -3,10 +3,7 @@ import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity, ThermometerSun, MapPin } from 'lucide-react'
 
-const FleetMap = dynamic(() => import('@/components/map/FleetMap'), { 
-  ssr: false, 
-  loading: () => <div className="w-full h-full bg-slate-100 flex items-center justify-center animate-pulse">Loading map...</div> 
-})
+import MapWrapper from '@/components/map/MapWrapper'
 
 export default async function AdminDashboard() {
   const devices = await prisma.device.findMany({
@@ -80,7 +77,7 @@ export default async function AdminDashboard() {
           <CardTitle>Live Fleet Tracking</CardTitle>
         </CardHeader>
         <CardContent className="h-[600px] p-0 overflow-hidden rounded-b-xl border-t">
-          <FleetMap initialData={mapData} />
+          <MapWrapper initialData={mapData} />
         </CardContent>
       </Card>
     </div>
