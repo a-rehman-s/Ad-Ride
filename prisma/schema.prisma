@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  RIDER
+}
+
+enum DeviceStatus {
+  ONLINE
+  OFFLINE
+}
+
+enum PanelType {
+  FRONT
+  LEFT
+  RIGHT
+  ANY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  GIF
+}
+
+enum AdStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String?
+  role        Role     @default(RIDER)
+  devices     Device[] // A rider can have multiple devices
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  adsUploaded Ad[]     @relation("UploadedAds")
+}
+
+model Device {
+  id          String       @id // The physical device ID from the ESP32
+  riderId     String?
+  rider       User?        @relation(fields: [riderId], references: [id])
+  boxLabel    String
+  status      DeviceStatus @default(OFFLINE)
+  lastSeen    DateTime     @default(now())
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  telemetry       Telemetry[]
+  panelSelections PanelSelection[]
+}
+
+model Telemetry {
+  id          String   @id @default(uuid())
+  deviceId    String
+  device      Device   @relation(fields: [deviceId], references: [id])
+  lat         Float
+  lng         Float
+  tempC       Float
+  humidityPct Float
+  speed       Float?
+  timestamp   DateTime @default(now())
+}
+
+model Ad {
+  id          String    @id @default(uuid())
+  title       String
+  mediaUrl    String
+  mediaType   MediaType
+  targetPanel PanelType
+  status      AdStatus  @default(ACTIVE)
+  uploadedBy  String
+  uploader    User      @relation("UploadedAds", fields: [uploadedBy], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  selections  PanelSelection[]
+}
+
+model PanelSelection {
+  id          String    @id @default(uuid())
+  deviceId    String
+  device      Device    @relation(fields: [deviceId], references: [id])
+  panel       PanelType
+  currentAdId String
+  currentAd   Ad        @relation(fields: [currentAdId], references: [id])
+  updatedAt   DateTime  @default(now())
+  updatedBy   String?   // Could be admin or rider ID
+  
+  @@unique([deviceId, panel]) // Each device can only have one active ad per panel
+}
