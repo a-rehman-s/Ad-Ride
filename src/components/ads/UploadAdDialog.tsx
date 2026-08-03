@@ -85,11 +85,9 @@ export default function UploadAdDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Upload Ad
-        </Button>
+      <DialogTrigger render={<Button />}>
+        <PlusCircle className="mr-2 h-4 w-4" />
+        Upload Ad
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

@@ -28,7 +28,7 @@ export async function createAdRecord(title: string, mediaUrl: string, mediaType:
         mediaType,
         targetPanel,
         status: 'ACTIVE',
-        uploadedById: dbUser.id
+        uploadedBy: dbUser.id
       }
     })
 
