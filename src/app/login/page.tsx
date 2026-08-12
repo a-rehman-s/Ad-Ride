@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { registerPrismaUser } from '../actions/authActions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isRider, setIsRider] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -41,7 +43,7 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { error } = await supabase.auth.signUp({
+    const { error, data } = await supabase.auth.signUp({
       email,
       password,
     })
@@ -50,6 +52,14 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
       return
+    }
+
+    if (isRider && data?.user?.email) {
+      try {
+        await registerPrismaUser(data.user.email, true)
+      } catch (err) {
+        console.error("Failed to register Prisma user:", err)
+      }
     }
 
     // Assuming auto-confirm is enabled in Supabase for testing,
@@ -90,6 +100,16 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required 
                 />
+              </div>
+              <div className="flex items-center space-x-2 pt-2">
+                <input 
+                  type="checkbox" 
+                  id="isRider" 
+                  checked={isRider} 
+                  onChange={(e) => setIsRider(e.target.checked)} 
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 dark:border-slate-700 dark:text-slate-50 dark:focus:ring-slate-50"
+                />
+                <Label htmlFor="isRider" className="cursor-pointer">Sign up as a Rider</Label>
               </div>
               {error && (
                 <div className="text-red-500 text-sm">{error}</div>
