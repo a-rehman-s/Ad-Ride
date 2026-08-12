@@ -11,8 +11,6 @@ const prisma = new PrismaClient({ adapter })
 const DEFAULT_PASSWORD = 'Password123!'
 
 async function createAuthUser(email: string) {
-  // We use gen_random_uuid() and crypt() from Postgres to insert users directly into Supabase Auth
-  // bypassing any email rate limits.
   const result: any = await prisma.$queryRawUnsafe(`
     INSERT INTO auth.users (
       instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, 
@@ -25,7 +23,17 @@ async function createAuthUser(email: string) {
     )
     RETURNING id;
   `)
-  return result[0].id
+  const userId = result[0].id
+  
+  await prisma.$executeRawUnsafe(`
+    INSERT INTO auth.identities (
+      id, user_id, provider_id, identity_data, provider, created_at, updated_at
+    )
+    VALUES (
+      gen_random_uuid(), '${userId}', '${userId}', '{"sub": "${userId}", "email": "${email}"}'::jsonb, 'email', now(), now()
+    );
+  `)
+  return userId
 }
 
 async function main() {
