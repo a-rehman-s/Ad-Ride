@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import Link from 'next/link'
-import { LayoutDashboard, Megaphone, LogOut } from 'lucide-react'
+import { LayoutDashboard, Megaphone, LogOut, Users } from 'lucide-react'
 
 import RealtimeWrapper from '@/components/RealtimeWrapper'
 
@@ -49,6 +49,13 @@ export default async function AdminLayout({
                 >
                   <Megaphone className="w-4 h-4 mr-2" />
                   Ad Management
+                </Link>
+                <Link
+                  href="/admin/users"
+                  className="border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  User Management
                 </Link>
               </div>
             </div>
