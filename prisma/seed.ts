@@ -1,49 +1,74 @@
-import { PrismaClient, Role, DeviceStatus, PanelType, MediaType, AdStatus } from '@prisma/client'
+import 'dotenv/config'
+import { PrismaClient, Role, DeviceStatus, PanelType, MediaType } from '@prisma/client'
 import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
 
-const connectionString = process.env.DATABASE_URL
+const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL
 const pool = new Pool({ connectionString })
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
-async function main() {
-  console.log('Starting seed...')
+const DEFAULT_PASSWORD = 'Password123!'
 
-  // Clear existing data
+async function createAuthUser(email: string) {
+  // We use gen_random_uuid() and crypt() from Postgres to insert users directly into Supabase Auth
+  // bypassing any email rate limits.
+  const result: any = await prisma.$queryRawUnsafe(`
+    INSERT INTO auth.users (
+      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, 
+      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    )
+    VALUES (
+      '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', 
+      '${email}', crypt('${DEFAULT_PASSWORD}', gen_salt('bf')), now(),
+      '{"provider":"email","providers":["email"]}', '{}', now(), now()
+    )
+    RETURNING id;
+  `)
+  return result[0].id
+}
+
+async function main() {
+  console.log('Starting full reset...')
+  
+  // 1. Delete Prisma Data
   await prisma.panelSelection.deleteMany()
   await prisma.telemetry.deleteMany()
   await prisma.ad.deleteMany()
   await prisma.device.deleteMany()
   await prisma.user.deleteMany()
+  console.log('Prisma data cleared.')
 
-  // 1. Create Admin User
+  // 2. Delete Supabase Auth Users
+  try {
+    await prisma.$executeRawUnsafe(`DELETE FROM auth.users;`)
+    console.log('Supabase auth.users cleared.')
+  } catch (err) {
+    console.log('Could not clear auth.users (might lack permissions or already empty).')
+  }
+
+  // 3. Create Users
+  console.log(`Creating users in auth.users and Prisma with password: ${DEFAULT_PASSWORD}`)
+  
+  // Create Admin
+  const adminAuthId = await createAuthUser('admin@adbox.com')
   const admin = await prisma.user.create({
-    data: {
-      email: 'admin@adbox.com',
-      name: 'Admin User',
-      role: Role.ADMIN,
-    },
+    data: { email: 'admin@adbox.com', name: 'Admin User', role: Role.ADMIN }
   })
-
-  // 2. Create Rider Users
+  
+  // Create Rider 1
+  const rider1AuthId = await createAuthUser('rider1@adbox.com')
   const rider1 = await prisma.user.create({
-    data: {
-      email: 'rider1@adbox.com',
-      name: 'Alice Rider',
-      role: Role.RIDER,
-    },
+    data: { email: 'rider1@adbox.com', name: 'Alice Rider', role: Role.RIDER }
   })
-
+  
+  // Create Rider 2
+  const rider2AuthId = await createAuthUser('rider2@adbox.com')
   const rider2 = await prisma.user.create({
-    data: {
-      email: 'rider2@adbox.com',
-      name: 'Bob Rider',
-      role: Role.RIDER,
-    },
+    data: { email: 'rider2@adbox.com', name: 'Bob Rider', role: Role.RIDER }
   })
 
-  // 3. Create Devices
+  // 4. Create Devices
   const device1 = await prisma.device.create({
     data: {
       id: 'DEV-ESP32-001',
@@ -62,7 +87,7 @@ async function main() {
     },
   })
 
-  // 4. Create Ads
+  // 5. Create Ads
   const ad1 = await prisma.ad.create({
     data: {
       title: 'Coca Cola Summer Promo',
@@ -82,18 +107,8 @@ async function main() {
       uploadedBy: admin.id,
     },
   })
-  
-  const ad3 = await prisma.ad.create({
-    data: {
-      title: 'Local Pizza Shop',
-      mediaUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38',
-      mediaType: MediaType.IMAGE,
-      targetPanel: PanelType.RIGHT,
-      uploadedBy: admin.id,
-    },
-  })
 
-  // 5. Create Panel Selections
+  // 6. Create Panel Selections
   await prisma.panelSelection.create({
     data: {
       deviceId: device1.id,
@@ -112,29 +127,7 @@ async function main() {
     },
   })
 
-  // 6. Create some mock telemetry
-  await prisma.telemetry.createMany({
-    data: [
-      {
-        deviceId: device1.id,
-        lat: 37.7749,
-        lng: -122.4194,
-        tempC: 45.2,
-        humidityPct: 30.5,
-        speed: 15.2,
-      },
-      {
-        deviceId: device2.id,
-        lat: 37.7849,
-        lng: -122.4094,
-        tempC: 38.1,
-        humidityPct: 40.0,
-        speed: 0.0,
-      }
-    ]
-  })
-
-  console.log('Seeding completed successfully!')
+  console.log('Database successfully reset and seeded with passwords!')
 }
 
 main()
