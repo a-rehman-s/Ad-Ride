@@ -2,38 +2,39 @@ import 'dotenv/config'
 import { PrismaClient, Role, DeviceStatus, PanelType, MediaType } from '@prisma/client'
 import { Pool } from 'pg'
 import { PrismaPg } from '@prisma/adapter-pg'
+import { createClient } from '@supabase/supabase-js'
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL
 const pool = new Pool({ connectionString })
 const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
 const DEFAULT_PASSWORD = 'Password123!'
 
-async function createAuthUser(email: string) {
-  const result: any = await prisma.$queryRawUnsafe(`
-    INSERT INTO auth.users (
-      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at, 
-      raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-    )
-    VALUES (
-      '00000000-0000-0000-0000-000000000000', gen_random_uuid(), 'authenticated', 'authenticated', 
-      '${email}', crypt('${DEFAULT_PASSWORD}', gen_salt('bf')), now(),
-      '{"provider":"email","providers":["email"]}', '{}', now(), now()
-    )
-    RETURNING id;
-  `)
-  const userId = result[0].id
-  
-  await prisma.$executeRawUnsafe(`
-    INSERT INTO auth.identities (
-      id, user_id, provider_id, identity_data, provider, created_at, updated_at
-    )
-    VALUES (
-      gen_random_uuid(), '${userId}', '${userId}', '{"sub": "${userId}", "email": "${email}"}'::jsonb, 'email', now(), now()
-    );
-  `)
-  return userId
+async function signUpUser(email: string, name: string, role: Role) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password: DEFAULT_PASSWORD,
+    options: {
+      data: { name }
+    }
+  })
+
+  if (error) {
+    console.log(`Supabase sign up failed for ${email}: ${error.message}`)
+  }
+
+  const user = await prisma.user.upsert({
+    where: { email },
+    update: { name, role },
+    create: { email, name, role }
+  })
+  return user
 }
 
 async function main() {
@@ -50,33 +51,30 @@ async function main() {
   // 2. Delete Supabase Auth Users
   try {
     await prisma.$executeRawUnsafe(`DELETE FROM auth.users;`)
-    console.log('Supabase auth.users cleared.')
+    console.log('Supabase auth.users cleared (bypassed corrupted users).')
   } catch (err) {
     console.log('Could not clear auth.users (might lack permissions or already empty).')
   }
 
-  // 3. Create Users
-  console.log(`Creating users in auth.users and Prisma with password: ${DEFAULT_PASSWORD}`)
+  // 3. Create Users with unique emails to bypass rate limits!
+  console.log(`Creating users with standard API to prevent 500 Errors...`)
+  const rand = Math.floor(Math.random() * 10000)
   
-  // Create Admin
-  const adminAuthId = await createAuthUser('admin@adbox.com')
-  const admin = await prisma.user.create({
-    data: { email: 'admin@adbox.com', name: 'Admin User', role: Role.ADMIN }
-  })
-  
-  // Create Rider 1
-  const rider1AuthId = await createAuthUser('rider1@adbox.com')
-  const rider1 = await prisma.user.create({
-    data: { email: 'rider1@adbox.com', name: 'Alice Rider', role: Role.RIDER }
-  })
-  
-  // Create Rider 2
-  const rider2AuthId = await createAuthUser('rider2@adbox.com')
-  const rider2 = await prisma.user.create({
-    data: { email: 'rider2@adbox.com', name: 'Bob Rider', role: Role.RIDER }
-  })
+  const adminEmail = `admin_${rand}@adbox.com`
+  const rider1Email = `rider1_${rand}@adbox.com`
+  const rider2Email = `rider2_${rand}@adbox.com`
 
-  // 4. Create Devices
+  const admin = await signUpUser(adminEmail, 'Admin User', Role.ADMIN)
+  const rider1 = await signUpUser(rider1Email, 'Alice Rider', Role.RIDER)
+  const rider2 = await signUpUser(rider2Email, 'Bob Rider', Role.RIDER)
+
+  // 4. Auto-confirm emails just in case Supabase has it enabled
+  try {
+    await prisma.$executeRawUnsafe(`UPDATE auth.users SET email_confirmed_at = NOW();`)
+    console.log('Emails auto-confirmed.')
+  } catch(err) {}
+
+  // 5. Create Devices
   const device1 = await prisma.device.create({
     data: {
       id: 'DEV-ESP32-001',
@@ -95,7 +93,7 @@ async function main() {
     },
   })
 
-  // 5. Create Ads
+  // 6. Create Ads
   const ad1 = await prisma.ad.create({
     data: {
       title: 'Coca Cola Summer Promo',
@@ -116,7 +114,7 @@ async function main() {
     },
   })
 
-  // 6. Create Panel Selections
+  // 7. Create Panel Selections
   await prisma.panelSelection.create({
     data: {
       deviceId: device1.id,
@@ -136,6 +134,13 @@ async function main() {
   })
 
   console.log('Database successfully reset and seeded with passwords!')
+  console.log('----------------------------------------------------')
+  console.log('PLEASE USE THESE NEW CREDENTIALS TO LOGIN:')
+  console.log(`Admin: ${adminEmail}`)
+  console.log(`Rider 1: ${rider1Email}`)
+  console.log(`Rider 2: ${rider2Email}`)
+  console.log(`Password: ${DEFAULT_PASSWORD}`)
+  console.log('----------------------------------------------------')
 }
 
 main()
